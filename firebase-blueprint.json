@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with privilege levels and metadata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Authenticated user identifier" },
+        "name": { "type": "string", "description": "Full name of the corporate user" },
+        "email": { "type": "string", "format": "email", "description": "Corporate email address" },
+        "role": { "type": "string", "enum": ["User", "Research Analyst", "Admin"], "description": "System access privilege role" },
+        "organization": { "type": "string", "description": "Corporate organization name" },
+        "industry": { "type": "string", "description": "Industry compliance focus region" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "LegalDocument": {
+      "title": "LegalDocument",
+      "description": "Scanned legal contract or regulatory document metadata and parsed contents",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique document identifier in database" },
+        "title": { "type": "string", "description": "Uploaded PDF or TXT filename" },
+        "category": { "type": "string", "enum": ["Legal Contract", "Tax Regulation", "Compliance Audit", "Internal Policy", "Custom Upload"] },
+        "uploadedAt": { "type": "string", "format": "date-time", "description": "Timestamp of initial upload" },
+        "uploadedBy": { "type": "string", "description": "Name of the operator who uploaded this document" },
+        "ownerId": { "type": "string", "description": "UID of the user possessing lease over this document" },
+        "fileSize": { "type": "string", "description": "Human-readable sizing indicator" },
+        "pagesCount": { "type": "number", "description": "Number of pages parsed" },
+        "status": { "type": "string", "enum": ["Analyzing", "Analyzed", "Error"] }
+      },
+      "required": ["id", "title", "category", "uploadedAt", "uploadedBy", "ownerId", "pagesCount", "status"]
+    },
+    "ComplianceReport": {
+      "title": "ComplianceReport",
+      "description": "Detailed statutory compliance assessment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "documentId": { "type": "string", "description": "Foreign key to associated LegalDocument" },
+        "documentTitle": { "type": "string" },
+        "industry": { "type": "string" },
+        "score": { "type": "number", "description": "Global compliance health score from 0 to 100" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["id", "documentId", "documentTitle", "score", "ownerId"]
+    },
+    "RiskReport": {
+      "title": "RiskReport",
+      "description": "Calculated exposure risks across key domains",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "documentId": { "type": "string" },
+        "documentTitle": { "type": "string" },
+        "overallScore": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"] },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["id", "documentId", "documentTitle", "overallScore", "ownerId"]
+    },
+    "Checklist": {
+      "title": "Checklist",
+      "description": "Actionable task items generated for legal tax compliance processes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string", "enum": ["GST Filing", "Audit Preparation", "Tax Compliance", "Legal Documentation", "General Regulation"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["id", "title", "category", "createdAt", "ownerId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Isolate user profiles by their private authenticated ID"
+    },
+    "/documents/{documentId}": {
+      "schema": "LegalDocument",
+      "description": "Primary storage of compliance documents"
+    },
+    "/complianceReports/{reportId}": {
+      "schema": "ComplianceReport",
+      "description": "Compliance reports indexed by unique ID; restricted by owner"
+    },
+    "/riskReports/{reportId}": {
+      "schema": "RiskReport",
+      "description": "Calculated risk scoring matrices; restricted by owner"
+    },
+    "/checklists/{checklistId}": {
+      "schema": "Checklist",
+      "description": "Checklists for compliance, mapped by owner"
+    }
+  }
+}

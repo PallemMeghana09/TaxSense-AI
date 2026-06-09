@@ -1,0 +1,159 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Master Catch-All Deny Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Hardened Global Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(ownerId) {
+      return isSignedIn() && ownerId == request.auth.uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Enterprise Entities Validation Blueprints ---
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'role'])
+        && data.keys().size() >= 4
+        && data.id is string
+        && data.name is string && data.name.size() <= 128
+        && data.email is string && data.email.size() <= 128
+        && data.role is string && (data.role == 'User' || data.role == 'Research Analyst' || data.role == 'Admin');
+    }
+
+    function isValidDocument(data) {
+      return data.keys().hasAll(['id', 'title', 'category', 'uploadedAt', 'uploadedBy', 'ownerId', 'pagesCount', 'status'])
+        && data.keys().size() >= 8
+        && data.id is string
+        && data.title is string && data.title.size() <= 256
+        && data.category is string
+        && data.uploadedAt is string
+        && data.uploadedBy is string
+        && data.ownerId is string
+        && data.pagesCount is int
+        && data.status is string;
+    }
+
+    function isValidComplianceReport(data) {
+      return data.keys().hasAll(['id', 'documentId', 'documentTitle', 'score', 'ownerId'])
+        && data.keys().size() >= 5
+        && data.id is string
+        && data.documentId is string
+        && data.documentTitle is string
+        && data.score is number
+        && data.ownerId is string;
+    }
+
+    function isValidRiskReport(data) {
+      return data.keys().hasAll(['id', 'documentId', 'documentTitle', 'overallScore', 'ownerId'])
+        && data.keys().size() >= 5
+        && data.id is string
+        && data.documentId is string
+        && data.documentTitle is string
+        && data.overallScore is string
+        && data.ownerId is string;
+    }
+
+    function isValidChecklist(data) {
+      return data.keys().hasAll(['id', 'title', 'category', 'createdAt', 'ownerId'])
+        && data.keys().size() >= 5
+        && data.id is string
+        && data.title is string
+        && data.category is string
+        && data.createdAt is string
+        && data.ownerId is string;
+    }
+
+    // --- Collections Rules Rulesets ---
+
+    // 1. Users Profile Isolate
+    match /users/{userId} {
+      allow read: if isSignedIn() && userId == request.auth.uid;
+      allow create: if isSignedIn() && userId == request.auth.uid && isValidUserProfile(incoming()) 
+                     && incoming().role != 'Admin'; // Forbid self-signed Admin credentials
+      allow update: if isSignedIn() && userId == request.auth.uid && isValidUserProfile(incoming())
+                     && incoming().role == existing().role; // Block Privilege Escalation attempts
+      allow delete: if false; // User records cannot be deleted directly
+    }
+
+    // 2. Documents Registry
+    match /documents/{documentId} {
+      allow get: if isSignedIn() && (existing().ownerId == request.auth.uid || existing().uploadedBy == 'System');
+      allow list: if isSignedIn() && (resource.data.ownerId == request.auth.uid || resource.data.uploadedBy == 'System');
+      
+      allow create: if isSignedIn() && isValidId(documentId) && isValidDocument(incoming())
+                     && incoming().ownerId == request.auth.uid
+                     && incoming().uploadedAt == request.time; // Temporal integrity
+                     
+      allow update: if isSignedIn() && isValidId(documentId) && isValidDocument(incoming())
+                     && existing().ownerId == request.auth.uid
+                     && incoming().ownerId == request.auth.uid
+                     && incoming().uploadedAt == existing().uploadedAt; // Keep creation time immutable
+                     
+      allow delete: if isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    // 3. Compliance Reports
+    match /complianceReports/{reportId} {
+      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      
+      allow create: if isSignedIn() && isValidId(reportId) && isValidComplianceReport(incoming())
+                     && incoming().ownerId == request.auth.uid;
+                     
+      allow update: if isSignedIn() && isValidId(reportId) && isValidComplianceReport(incoming())
+                     && existing().ownerId == request.auth.uid
+                     && incoming().ownerId == request.auth.uid;
+                     
+      allow delete: if isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    // 4. Risk Reports
+    match /riskReports/{reportId} {
+      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      
+      allow create: if isSignedIn() && isValidId(reportId) && isValidRiskReport(incoming())
+                     && incoming().ownerId == request.auth.uid;
+                     
+      allow update: if isSignedIn() && isValidId(reportId) && isValidRiskReport(incoming())
+                     && existing().ownerId == request.auth.uid
+                     && incoming().ownerId == request.auth.uid;
+                     
+      allow delete: if isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+
+    // 5. Checklists
+    match /checklists/{checklistId} {
+      allow get: if isSignedIn() && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      
+      allow create: if isSignedIn() && isValidId(checklistId) && isValidChecklist(incoming())
+                     && incoming().ownerId == request.auth.uid;
+                     
+      allow update: if isSignedIn() && isValidId(checklistId) && isValidChecklist(incoming())
+                     && existing().ownerId == request.auth.uid
+                     && incoming().ownerId == request.auth.uid;
+                     
+      allow delete: if isSignedIn() && existing().ownerId == request.auth.uid;
+    }
+  }
+}

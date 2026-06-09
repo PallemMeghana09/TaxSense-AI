@@ -1,0 +1,8 @@
+{
+  "name": "TaxSense AI",
+  "description": "An elite AI-powered search, compliance, and audit suite for legal contracts and corporate tax codes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
